@@ -1,0 +1,59 @@
+# MATLAB editor and runtime artefacts
+# Separately obtained model data must remain local.
+matlab/private_ice/
+**/ukicematlab*.m
+**/enginedata.m
+**/aerolookupdataall.m
+**/constants.m
+**/airdensity.m
+**/airtemperature.m
+*.asv
+*.m~
+*.autosave
+matlab_crash_dump.*
+*.mexw64
+*.mexa64
+*.mexmaci64
+slprj/
+*.slxc
+codegen/
+emergency_workspace.mat
+thrust_bridge_checkpoint.mat
+
+# LaTeX build products; retain source PDF illustrations
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.xdv
+*.dvi
+*.run.xml
+*.bcf
+*.nav
+*.snm
+*-figure*.pdf
+*-figure*.md5
+*-figure*.dpth
+latex/main.pdf
+latex/main.figlist
+latex/main.makefile
+
+# Python and local environment files
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.env.*
+
+# Operating system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini

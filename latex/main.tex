@@ -1,0 +1,980 @@
+\documentclass[conf]{new-aiaa}
+%\documentclass[journal]{new-aiaa} % for journal papers
+
+\usepackage[utf8]{inputenc}
+\usepackage{cite}
+\usepackage{caption}
+\usepackage{gensymb}
+\usepackage{booktabs}
+\usepackage{multirow}
+\renewcommand{\arraystretch}{1.1}
+\usepackage{pgf}
+\usepackage[sort&compress,numbers]{natbib}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{pgfplots}
+\usepackage{pgfplotstable}
+\usepgfplotslibrary{groupplots}
+\pgfplotsset{compat=newest}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{hyperref}
+\usepgfplotslibrary{fillbetween}
+\usetikzlibrary{patterns}
+\usepgfplotslibrary{external}
+\tikzexternalize
+\usepackage[dvipsnames]{xcolor}
+\usepackage{bm}
+\usepackage{siunitx}
+\sisetup{detect-all, per-mode=symbol}
+\usetikzlibrary{calc}
+\usepackage{textcomp}
+\usepackage{tcolorbox}
+\usepackage{algorithm}
+\usepackage{cuted}
+\usepackage{algpseudocode}
+\usepackage{dblfloatfix}
+\usepackage[version=4]{mhchem}
+\usepackage{longtable,tabularx}
+\usepackage{lettrine}
+\setlength\LTleft{0pt}
+
+\renewcommand{\tableautorefname}{Tab.}
+\renewcommand*{\figureautorefname}{Fig.}
+\renewcommand*{\figurename}{Figure}
+\renewcommand{\equationautorefname}{Eq.}
+
+\newcommand{\trimres}{\mathbf{r}_{\mathrm{trim}}}
+\newcommand{\xtrim}{\mathbf{x}_{\mathrm{trim}}}
+\newcommand{\utrim}{\mathbf{u}_{\mathrm{trim}}}
+\newcommand{\Acl}{\mathbf{A}_{\mathrm{cl}}}
+
+\title{Trim Feasibility Analysis of Thrust Vectoring and Aerodynamic Control in a Tailless Delta Wing Aircraft}
+
+\author{Arnav Jabulee\footnote{MEng Aerospace Engineering Student, School of Civil, Aerospace, and Design Engineering}}
+\affil{University of Bristol, Queen's Building, University Walk, Clifton, Bristol, BS8 1TR, United Kingdom}
+
+\author{Mark Lowenberg\footnote{Professor of Flight Dynamics, School of Civil, Aerospace, and Design Engineering}}
+\affil{University of Bristol, Queen's Building, University Walk, Clifton, Bristol, BS8 1TR, United Kingdom}
+
+\author{Tom Richardson\footnote{Professor of Aerial Robotics, School of Civil, Aerospace, and Design Engineering}}
+\affil{University of Bristol, Queen's Building, University Walk, Clifton, Bristol, BS8 1TR, United Kingdom}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+This paper investigates the trim-feasible operating envelope of the ICE 101-TV tailless delta-wing aircraft under thrust-vectoring-only (TVC-only) and aerodynamic-control configurations using the full nonlinear six-degree-of-freedom equations of motion. Trim states are computed over altitude--true-airspeed grids by directly enforcing steady-flight conditions, with local continuation used to assess disconnected feasible regions and propulsion-relaxed sweeps used to separate propulsion limits from control-authority limits.
+
+Under nominal propulsion and actuator limits, the aerodynamic-control configuration produces the larger contiguous main trim-feasible envelope. The TVC-only configuration yields a smaller main envelope whose extent depends strongly on the available pitch thrust-vector angle, with increasing vector authority expanding the nominally reachable operating region. All nominal TVC-only cases also exhibit a detached high-speed/high-altitude trim branch. When propulsion constraints are relaxed, a corresponding detached branch is recovered in the aerodynamic-control case, but at higher required propulsion levels, demonstrating that the principal architectural difference lies in solution branch accessibility rather than branch existence.
+
+Nonlinear closed-loop simulations and local eigenvalue checks show that static trim feasibility alone does not guarantee satisfactory recoverability, particularly in the lateral-directional channels. Nevertheless, the TVC-only controller stabilises all selected trim-feasible points tested in nonlinear simulation, including representative coordinated-turn cases.
+\end{abstract}
+
+\section{Nomenclature}
+
+{\renewcommand\arraystretch{1.0}
+\noindent\begin{longtable*}{@{}l @{\quad=\quad} l@{}}
+$V_t$ & true airspeed \\
+$V_e$ & equivalent airspeed \\
+$h$ & geopotential altitude \\
+$\alpha,\beta$ & angle of attack and sideslip angle \\
+$\gamma$ & flight-path angle \\
+$\phi,\theta,\psi$ & Euler roll, pitch, and yaw angles \\
+$p,q,r$ & body-axis angular rates \\
+PLA & power lever angle command \\
+$\delta_{tv_z}$ & pitch thrust-vector angle \\
+$\delta_{tv_w}$ & yaw thrust-vector angle \\
+$J_\gamma$ & integrated absolute flight-path-angle error \\
+$\tau_{\max}$ & largest actuator lag time constant that still gives recovery \\
+\end{longtable*}}
+
+
+\section{Introduction}
+\lettrine{T}{ailless} aircraft configurations, such as delta-wing or blended-wing-body designs, offer significant aerodynamic, structural, and low-observable advantages over conventional tailed aircraft. However, the absence of a horizontal and vertical tail removes key sources of restoring moments, resulting in reduced static stability margins, strong aerodynamic nonlinearities, and limited control authority at high angles of attack or low dynamic pressure \cite{HuSongWu2024,ParkChoiJo2017}. These challenges are particularly pronounced in the post-stall regime, where conventional aerodynamic effectors lose effectiveness.
+
+Thrust vectoring has long been investigated as a means to augment or replace aerodynamic controls in tailless vehicles. Early quasi-tailless flight demonstrations on the X-31A showed that multi-axis thrust vectoring can restore directional control and expand the usable flight envelope when the vertical tail is effectively removed \cite{HuberSchellenger1994,BosworthStoliker1996}. Subsequent research on innovative control effectors further demonstrated that vectored propulsion can provide the necessary pitching and yawing moments for trimmed flight across a wide range of Mach numbers and altitudes \cite{Francis2018}. Additionally, deflection of conventional aerodynamic control surfaces, such as spoilers, elevons, and flaps, significantly increases radar cross-section due to gaps, edge diffraction, and surface discontinuities; thrust vectoring can reduce this signature by minimising the required deflection of these surfaces \cite{Zhou2021}.
+
+The Innovative Control Effectors (ICE) 101 configuration, developed by the U.S. Air Force Research Laboratory, has become a standard benchmark for tailless fighter studies \cite{Gillard1998}. Extensive work on the ICE 101 and its thrust vectoring variant (ICE 101-TV) has examined linearised control-law design \cite{NietoWireSobel2011}, gain-scheduled dynamic state-feedback \cite{JonesLowenbergRichardson2004}, and model-predictive approaches \cite{Proctor2019}. Variable-fidelity aerodynamic modelling has also been used to quantify stability and control derivatives for this geometry \cite{ParkChoiJo2017}. More recent reviews highlight fluidic and mechanical thrust vectoring techniques as particularly promising for future tailless unmanned combat aerial vehicles, yet note persistent difficulties in nonlinear trim and envelope prediction \cite{HuSongWu2024,LiSunTan2022}.
+
+Despite this body of work, few studies have performed a direct, full-envelope comparison of thrust vectoring-only versus aerodynamic control trim feasibility using the complete nonlinear six-degree-of-freedom (6DOF) equations of motion. Most prior analyses rely on linearised models or simplified force/moment balance equations that do not fully capture the force--moment coupling introduced by large thrust-vector deflections. In particular, the possible existence of disconnected nonlinear trim branches at high speed and altitude has received limited attention. Such branches, if present, have direct implications for propulsion sizing, actuator authority, and reachable operating envelopes.
+
+This paper addresses these gaps by computing the trim-feasible operating envelope of the ICE 101-TV model in both thrust-vectoring-only and aerodynamic-control configurations. The main contributions are: (i) a direct nonlinear 6DOF trim search over altitude--airspeed grids, (ii) a comparison between TVC-only and aerodynamic-control trim accessibility, (iii) a local continuation test for the detached high-speed/high-altitude feasible region, and (iv) a first closed-loop recoverability assessment using linearised controllers and nonlinear time histories. Here, \emph{recoverability} denotes the ability of the closed-loop nonlinear model to return from a specified perturbation to a bounded neighbourhood of the selected trim state without actuator saturation causing divergence over the simulation window. This definition is narrower than full nonlinear stability and is used only as a practical screening metric.
+
+The remainder of the paper is organised as follows: Section~\ref{sec:method} details the aircraft model, trim formulation, controller construction, and recoverability metrics. Section~\ref{sec:results} presents the computed trim envelopes, continuation results, closed-loop recovery responses, and manoeuvre cases. Section~\ref{sec:discussion} discusses the physical interpretation, limitations, and design implications of the observed trim-branch behaviour.
+
+\section{Method}\label{sec:method}
+
+\subsection{Study Overview}
+This study employs the ICE 101-TV nonlinear six-degree-of-freedom (6DOF) rigid-body model as a representative tailless delta-wing platform \cite{Gillard1998,Buffington1999}. The investigation begins with analytical static trim relations derived from longitudinal force and moment equilibrium. These relations guide a numerical search over altitude--speed grids using the full nonlinear equations of motion. Trim points are filtered by residual tolerance and actuator limits, then assembled into feasible envelopes for thrust-vectoring-only and aerodynamic-control configurations. Sensitivity to thrust-vector saturation is examined, and local continuation is used to assess whether disconnected feasible regions correspond to genuine trim branches. Propulsion demand is decoupled from other constraints by removing the power lever angle (PLA) limit in selected sweeps, enabling comparison of branch accessibility under different control architectures. This yields critical vectoring-angle and propulsion-threshold metrics.
+
+The analysis focuses on steady longitudinal level flight, with constant altitude and $\gamma=0$, as the primary case, with selected extensions to climb, descent, and coordinated turns. All computations use the International Standard Atmosphere (ISA) model with no wind or gravitational variation. Accordingly, the analysis distinguishes between the existence of a trim branch in the unconstrained or propulsion-relaxed problem and its accessibility under nominal actuator and propulsion limits.
+
+\subsection{Aircraft Model and States}
+The ICE 101 configuration is treated here as a research benchmark model rather than as an operational aircraft. The aerodynamic and control data are taken from the AFRL ICE 101/ICE 101-TV model sources used in previous control-law studies \cite{Gillard1998,Buffington1999,JonesLowenbergRichardson2004}. The model is therefore suitable for comparative trim and control analysis, but the resulting envelopes should be interpreted as model-based feasibility maps rather than certified aircraft limits.
+
+The simulation implements a rigid-body 6DOF model with state vector
+\[
+\mathbf{x} = [u\ v\ w\ p\ q\ r\ \phi\ \theta\ \psi\ x_N\ y_E\ z_D]^T.
+\]
+Derived quantities include angle of attack $\alpha$, sideslip $\beta$, true airspeed $V_t$, Mach number $M$, flight-path angle $\gamma$, equivalent airspeed $V_e$, load factor $n$, and geopotential altitude $h$. The body-axis translational velocities are $u,v,w$ and the angular rates are $p,q,r$.
+
+Aerodynamic coefficients are evaluated from lookup tables parameterised by $\alpha$, Mach number, and the relevant control deflections. Cubic-spline interpolation is used in this work to obtain smooth coefficient variation between tabulated points; this is an implementation choice for the present trim solver, not a claim that the original aerodynamic database was generated using cubic splines. Where a trim calculation lies outside the validated table ranges, the point is rejected unless explicitly stated as part of a propulsion-relaxed exploratory sweep.
+
+Propulsion is modelled using a static thrust table dependent on PLA and altitude. Pitch and yaw thrust-vector commands are denoted by $\delta_{tv_z}$ and $\delta_{tv_w}$, respectively. Actuator dynamics are neglected during trim calculation, but are included in the recovery simulations as first-order lags with rate limits.
+
+\begin{table}[h]
+\centering
+\footnotesize
+\caption{Model parameters and validity limits used in the trim search. }
+\label{tab:model_parameters}
+\begin{tabular}{lll}
+\toprule
+Quantity & Value & Source/comment \\
+\midrule
+Mass, $m$ & $14855\,\mathrm{kg}$ & model file \\
+$I_{xx}, I_{yy}, I_{zz}, I_{xz}$ & $48103, 106366, 149991, -712\,\mathrm{kg\,m}^2$ & model file \\
+Reference area, $S$ & $75.12\,\mathrm{m}^2$ & model file \\
+Mean aerodynamic chord, $\bar{c}$ & $8.76\,\mathrm{m}$ & model file \\
+Reference span, $b$ & $11.43\,\mathrm{m}$ & model file \\
+Static Margin & & derived from model file \\
+Thrust vectoring offsets from CG ($x, z$) & $0.153, 7.545$ & model file \\
+Engine drag offsets from CG ($x, z$) & $0.101, 2.03$ & model file \\
+$\alpha$ table range & $-25.0^\circ\leq\alpha\leq45.0^\circ$ & model file \\
+$\beta$ table range & $-10.0^\circ\leq\beta\leq10.0^\circ$ & model file \\
+Mach/table range & $0\leq\mbox{\textit{M}}\leq 2.0$ & model file \\
+Nominal PLA range & $20-127$ & model file \\
+Nominal pitch vector limit $\delta_{tv_z}$ limits & $-15.0^\circ\leq\delta_{tv_z}\leq15.0^\circ$ & Lockheed Martin documentation \\
+Nominal yaw vector limit $\delta_{tv_w}$ & $-15.0^\circ\leq\delta_{tv_z}\leq15.0^\circ$ & Lockheed Martin documentation \\
+Vector rate limit, $\dot{\delta}_{\max}$ & $50^\circ\,\mathrm{s}^{-1}$ & Lockheed Martin documentation \\
+Atmosphere & ISA & no wind, constant gravity \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Trim Formulation}
+Steady flight trim is posed as a nonlinear root-finding problem. For a specified altitude and true airspeed, the solver searches for a state--control pair $(\xtrim,\utrim)$ such that the selected acceleration and kinematic residuals vanish. For level longitudinal flight, the residual vector is
+\begin{equation}
+\trimres =
+\begin{bmatrix}
+\dot{u} & \dot{v} & \dot{w} & \dot{p} & \dot{q} & \dot{r} & \dot{h}
+\end{bmatrix}^{T}.
+\label{eq:trim_residual}
+\end{equation}
+The trim condition is therefore
+\begin{equation}
+\trimres(\xtrim,\utrim;h,V_t)=\mathbf{0}.
+\label{eq:trim_problem}
+\end{equation}
+In implementation, MATLAB's \texttt{fsolve} minimises the nonlinear residual in \eqref{eq:trim_residual}. A candidate point is accepted only when all translational and rotational acceleration residuals are below $10^{-5}$ in the model units and the altitude-rate constraint is also satisfied. No manual weighting is applied to the residual vector in the baseline results. If weighting is later introduced, the weighted residual should be reported explicitly as
+\begin{equation}
+\mathbf{W}\trimres=\mathbf{0},
+\end{equation}
+where $\mathbf{W}$ is the residual scaling matrix.
+
+The previous converged grid point is used as the initial guess where available. At the start of a new grid line, analytical longitudinal estimates from the static force/moment balance are used. This continuation-style seeding reduces isolated convergence failures, but each accepted point is still re-evaluated in the full nonlinear model before being included in the envelope.
+
+\subsection{Control Architectures}
+Two primary control architectures are compared. In the TVC-only configuration, longitudinal trim authority is provided by PLA and the pitch thrust-vector angle $\delta_{tv_z}$, with $|\delta_{tv_z}|$ limited to $15^\circ$, $20^\circ$, or $25^\circ$.
+
+For comparison, an aerodynamic-control configuration is used, allowing symmetric coordinated deflection of elevators, pitch flaps, spoilers, trailing-edge flaps, and all-moving tips. This provides a richer non-propulsive trim allocation while avoiding unphysical asymmetric deflections in symmetric flight \cite{Buffington1999}.
+
+\subsection{Static Trim Formulation}
+Analytical trim relations were first derived from free-body diagrams and force/moment balance in steady flight (see \autoref{fig:fbdsteady}). Assuming negligible side-force from thrust vectoring, the longitudinal equilibrium equations yield closed-form expressions for required thrust magnitude $T$ and vector angle $\delta_{tv_z}$ given $\alpha$ from the aerodynamic database. These relations provide rapid feasibility checks and insight into the dominant couplings before full nonlinear computation. At each $(h,V_t)$ grid point, the trim solver adjusts the relevant attitude and control variables for the chosen architecture, including $\alpha$, $\theta$, PLA, and the active control effectors, while enforcing the steady-flight constraints.
+
+\begin{figure}[h]
+    \centering
+    \begin{tikzpicture}[scale=1.0]
+        \def\gam{-12}
+        \def\alp{-18}
+        \pgfmathsetmacro{\th}{\gam+\alp}
+        \def\eps{20}
+        \def\Tlen{1.8}
+        \node[rotate=\th, inner sep=0] (aircraft) at (0,0)
+            {\includegraphics[width=5cm]{ICE_silhouette.pdf}};
+        \begin{scope}[rotate=\th]
+            \draw[dashed] (-3,0) node[left] {$x$} -- (4,0);
+        \end{scope}
+        \draw[<-] (-4,0) node[left] {$X$} -- (4,0) ;
+        \draw[->, dash pattern=on 8pt off 4pt, thick]
+            ({-3*cos(\gam)},{-3*sin(\gam)}) -- (0,0)
+            node[pos=0, left, above] {$V_t$};
+        \draw[->, thick]
+            (0,0) -- ({1.9*cos(\gam)},{1.9*sin(\gam)})
+            node[above right] {$D$};
+        \draw[->, thick]
+            (0,0) -- ({-1.8*sin(\gam)},{1.8*cos(\gam)})
+            node[above left] {$L$};
+        \draw[->, thick] (0,0) -- (0,-1.8) node[below, right] {$mg$};
+        \begin{scope}[shift={(aircraft.east)}, rotate=\th+\eps]
+            \draw[<-, thick] (0,0) -- (\Tlen,0) node[above right] {$T$};
+        \end{scope}
+        \draw[thick]
+            (aircraft.east) ++(\th:1)
+            arc[start angle=\th, end angle=\th+\eps, radius=1];
+        \node at ($(aircraft.east)+({\th+\eps/2}:1.35)$) {$\delta_{tv_z}$};
+        \draw[thick]
+            ({-1.7*cos(\gam)},{-1.7*sin(\gam)})
+            arc[start angle=180+\gam, end angle=180+\th, radius=1.7];
+        \node at ({-1.9*cos((\gam+\th)/2)},{-1.9*sin((\gam+\th)/2)}) {$\alpha$};
+        \draw[thick]
+            (-1.3,0) arc[start angle=180, end angle=180+\gam, radius=1.3];
+        \node at ({-1.5*cos(\gam/2)},{-1.5*sin(\gam/2)}) {$\gamma$};
+        \draw[thick]
+            (-2.2,0) arc[start angle=180, end angle=180+\th, radius=2.2];
+        \node at ({-2.4*cos((\th/2) - 5)},{-2.4*sin((\th/2) - 5)}) {$\theta$};
+        \coordinate (O) at (0,0);
+        \coordinate (E) at (aircraft.east);
+        \coordinate (Oup)  at ($(O)+({\th+90}:1.5)$);
+        \coordinate (Eup)  at ($(E)+({\th+90}:1.5)$);
+        \coordinate (Osil) at ($(O)+({\th+90}:1.3)$);
+        \coordinate (Esil) at ($(E)+({\th+90}:1.3)$);
+        \draw (O) -- (Oup);
+        \draw (E) -- (Eup);
+        \draw[<->] (Osil) -- (Esil)
+            node[above, midway] {$x_{jFG}$};
+        \draw[->, thick]
+            (-75:0.75) arc[start angle=-75, end angle=110, radius=0.75];
+        \node at (30:1.15) {$M_{aero}$};
+    \end{tikzpicture}
+    \caption{Free body diagram of the model in steady flight.}
+    \label{fig:fbdsteady}
+\end{figure}
+
+\subsection{Full Nonlinear 6DOF Trim Search}
+At each point on a regular altitude--speed grid, the nonlinear trim problem in \eqref{eq:trim_problem} is solved using \texttt{fsolve}. A candidate solution is accepted only if:
+\begin{enumerate}
+    \item all acceleration residuals satisfy the $10^{-5}$ tolerance,
+    \item the kinematic altitude-rate condition is satisfied,
+    \item all actuator and propulsion commands lie within the selected nominal limits,
+    \item the solution remains valid when re-evaluated outside the solver call.
+\end{enumerate}
+
+The word \emph{nominal} refers to the baseline propulsion and actuator limits imposed directly from the implemented ICE 101-TV model and the selected vector-angle cases in Table~\ref{tab:model_parameters}. In propulsion-relaxed sweeps, the PLA limit is removed as a hard constraint, but the demanded PLA or equivalent thrust scale factor is retained as an output. This allows propulsion-limited regions to be separated from regions that are limited primarily by control authority.
+
+\subsection{Local Continuation for Branch Identification}
+To distinguish disconnected trim families from grid artefacts, a simple predictor-corrector continuation is performed at fixed Mach numbers. Starting from a converged trim point, altitude is stepped upward and downward using the previous solution as the initial guess. Continuation stops at the first failed convergence. This procedure is used to assess whether detached feasible regions correspond to genuine nonlinear trim branches rather than grid artefacts. Where continuation succeeds across successive altitude steps from a converged seed, the disconnected region is interpreted as being consistent with a distinct trim branch. The same procedure is applied to the aerodynamic-control case as well, so that differences in branch appearance can be interpreted in terms of accessibility rather than numerical detection alone.
+
+\subsection{Linearisation and Controller Construction}
+At selected trim points, the nonlinear model is linearised numerically about $(\xtrim,\utrim)$ to obtain
+\begin{equation}
+\Delta\dot{\mathbf{x}} = \mathbf{A}\Delta\mathbf{x} + \mathbf{B}\Delta\mathbf{u}.
+\end{equation}
+The reduced control-design state is
+\[
+\Delta\mathbf{x}_r = [\Delta u\ \Delta v\ \Delta w\ \Delta p\ \Delta q\ \Delta r\ \Delta\phi\ \Delta\theta\ \Delta\psi]^T,
+\]
+and the TVC-only control input is
+\[
+\Delta\mathbf{u} = [\Delta\delta_{tv_w}\ \Delta\delta_{tv_z}]^T.
+\]
+The translational position states are excluded from the LQR design because the recovery objective is local attitude, rate, and flight-path regulation rather than path tracking.
+
+The LQR gain is computed from
+\begin{equation}
+\mathbf{K}=\mathrm{lqr}(\mathbf{A}_r,\mathbf{B}_r,\mathbf{Q},\mathbf{R}),
+\end{equation}
+with the feedback law
+\begin{equation}
+\Delta\mathbf{u}=-\mathbf{K}\Delta\mathbf{x}_r.
+\end{equation}
+The matrices $\mathbf{Q}$ and $\mathbf{R}$ penalise state deviation and TVC activity, respectively. The weighting matrices used are:
+\begin{equation}
+\mathbf{Q}=\mathrm{diag}([5.0,\ 0.1,\ 0.1,\ 2.0,\ 3.0,\ 2.0,\ 3.0,\ 3.0,\ 0.5]),\qquad
+\mathbf{R}=\mathrm{diag}([2.0,\ 5.0]).
+\label{eq:lqr_weights}
+\end{equation}
+
+The same design process is repeated at each selected trim condition rather than using a single global gain. This means the recovery simulations assess local closed-loop behaviour around representative equilibria, not a fully gain-scheduled flight controller. This distinction is important when interpreting the time histories.
+
+\subsection{Linear Stability Metrics}
+To supplement the nonlinear recovery simulations, local stability is assessed using the eigenvalues of the open-loop and closed-loop linearised systems. For each selected trim point, the open-loop eigenvalues are computed from $\mathbf{A}_r$, while the closed-loop eigenvalues are computed from
+\begin{equation}
+\Acl = \mathbf{A}_r - \mathbf{B}_r\mathbf{K}.
+\end{equation}
+A trim point is locally asymptotically stable in the linear closed-loop model if all eigenvalues of $\Acl$ have negative real parts. The maximum real part,
+\begin{equation}
+\sigma_{\max}=\max_i \Re(\lambda_i),
+\end{equation}
+is used as a compact stability-margin indicator. Values close to zero indicate slow convergence and are expected to correlate with the long settling times seen in some nonlinear simulations.
+
+\begin{table}[h]
+\centering
+\footnotesize
+\caption{Open-loop and closed-loop linear stability summary for representative trim points.}
+\label{tab:eigenvalue_summary}
+\begin{tabular}{lcccc}
+\toprule
+Case & $h$ (m) & $V_t$ (m/s) & $\max\Re(\lambda_A)$ & $\max\Re(\lambda_{A-BK})$ \\
+\midrule
+Main envelope & 6000 & 250 & 0.9731 & -0.0162 \\
+Detached branch & 18000 & 480 & 0.5620 & -0.0083 \\
+Near-boundary/just outside & 16000 & 450 & 0.7862 & -0.0089 \\
+Turn case & 0 & 300 & 1.8379 & -0.0118 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Nonlinear Recovery Simulations and Performance Metrics}
+For each feasible trim point the closed-loop system is simulated from a perturbed initial condition, using pitch-angle and pitch-rate offsets. Recovery performance is quantified by the integrated flight-path-angle error
+\[
+J_\gamma = \int_0^{t_f} |\gamma(t)|\,\mathrm{d}t.
+\]
+Robustness to actuator dynamics is evaluated by increasing a first-order lag time constant $\tau$ until recovery fails. Lateral-directional behaviour is monitored separately because it proves more challenging under TVC-only control.
+
+\subsection{Recoverability Classification}
+Recoverability is classified using both linear and nonlinear evidence. A point is marked recoverable only if the closed-loop linearisation has no eigenvalues with positive real part and the nonlinear time history remains bounded over the simulation horizon. In addition, the dominant deviations in $\gamma$, $\phi$, $\psi$, and actuator deflection must show an overall decaying or bounded response without persistent growth.
+
+The primary scalar performance metric is
+\[
+J_\gamma = \int_0^{t_f} |\gamma(t)|\,\mathrm{d}t,
+\]
+which measures longitudinal recovery quality. Because $J_\gamma$ alone can miss lateral-directional divergence, heading and bank-angle histories are also inspected. This is why the recovery plots include $\phi$ and $\psi$ as well as $\gamma$ and actuator deflections. The classification is therefore a practical closed-loop screening test, not a formal proof of nonlinear stability.
+
+\subsection{Additional Manoeuvre Cases}
+The framework is also extended to selected steady climb, descent, and coordinated-turn cases. For coordinated turns, the load factor is computed as
+\begin{equation}
+ n = \frac{L}{W} = \frac{1}{\cos\phi}
+\label{eq:load_factor_turn}
+\end{equation}
+for the reduced-order interpretation shown in Fig.~\ref{fig:fbdturn}. In the full 6DOF model, this value is treated as a derived manoeuvre metric rather than an imposed aerodynamic limit. These manoeuvre results are intended as indicative extensions of the trim analysis rather than as a complete energy--manoeuvrability study.
+
+\begin{figure}[h]
+    \centering
+    \begin{tikzpicture}[scale=1.0]
+        \def\phii{25}
+        \def\Llen{2.2}
+        \def\Wlen{1.8}
+        \node[rotate=-\phii, inner sep=0] (aircraft) at (0,0)
+            {\includegraphics[width=5cm]{ICE_roll.pdf}};
+        \draw[->, thick] (0,0) -- (0,-\Wlen) node[below right] {$mg$};
+        \draw[->, thick]
+            (0,0) -- ({\Llen*sin(\phii)},{\Llen*cos(\phii)})
+            node[above right] {$L$};
+        \draw[->, thick]
+            (0,0) -- (0,{ \Llen*cos(\phii) })
+            node[left] {$L\cos\phi$};
+        \draw[->, thick]
+            (0,0) -- ({\Llen*sin(\phii)},0)
+            node[right] {$L\sin\phi$};
+        \draw[dashed]
+            ({\Llen*sin(\phii)},0) -- ({\Llen*sin(\phii)},{\Llen*cos(\phii)});
+        \draw[dashed]
+            (0,{\Llen*cos(\phii)}) -- ({\Llen*sin(\phii)},{\Llen*cos(\phii)});
+        \draw (0,0.8) arc[start angle=90, end angle=90-\phii, radius=0.8];
+        \node at ({1.0*sin(\phii/2)},{1.0*cos(\phii/2)}) {$\phi$};
+    \end{tikzpicture}
+    \caption{Free body diagram of the model in a coordinated turn.}
+    \label{fig:fbdturn}
+\end{figure}
+
+
+\section{Results}\label{sec:results}
+\subsection{Trim-Feasible and Equilibrium Envelope Comparison}
+The first set of results compares the reachable trim set in the altitude--true-airspeed plane. Figure~\ref{fig:level_6dof_refined_envelope_clipped} shows the nominal feasible envelopes for aerodynamic control and for TVC-only control with three pitch-vector limits. Figures~\ref{fig:level_6dof_contours_vt} and~\ref{fig:aero_pla_contours_full} then show the propulsion demand associated with the recovered equilibrium maps. This order separates the question ``does a trim solution exist within the imposed limits?'' from the question ``how much propulsion is required to reach it?''
+
+\begin{figure*}[!h]
+    \centering
+    \begin{tikzpicture}
+    \begin{axis}[
+        width=0.94\textwidth,
+        height=0.36\textheight,
+        xmin=0, xmax=550,
+        ymin=0, ymax=20000,
+        xlabel={$V_t\;(\mathrm{m\,s}^{-1})$},
+        ylabel={Altitude ($\mathrm{m}$)},
+        grid=major,
+        enlargelimits=false,
+        tick label style={font=\small},
+        label style={font=\small},
+        tick align=outside,
+        legend style={font=\scriptsize, draw=none, fill=none, at={(0.02,0.98)}, anchor=north west},
+    ]
+    \addlegendimage{area legend, draw=black, fill=gray, fill opacity=0.25}
+    \addlegendentry{aerodynamic control envelope}
+    \addplot[black, thick, dash pattern=on 6pt off 1pt]
+    table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {final_m15.csv};
+    \addlegendentry{$\delta_{tv_z,\max} = 15^\circ$}
+    \addplot[black, dashed, thick]
+    table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {final_m20.csv};
+    \addlegendentry{$\delta_{tv_z,\max} = 20^\circ$}
+    \addplot[black, dash dot, thick]
+    table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {final_m25.csv};
+    \addlegendentry{$\delta_{tv_z,\max} = 25^\circ$}
+    \addplot[name path=aero lower, draw=none]
+    table[col sep=comma, x=Vt_mps, y=Altitude_m] {aero_pla_lower.csv};
+    \addplot[name path=xaxis line, draw=none] coordinates {(0,0) (550,0)};
+    \addplot[draw=none, fill=gray, fill opacity=0.25] fill between[of=aero lower and xaxis line];
+    \addplot[name path=aero upper, draw=none]
+    table[col sep=comma, x=Vt_mps, y=Altitude_m] {aero_pla_upper.csv};
+    \addplot[name path=top line, draw=none] coordinates {(0,20000) (550,20000)};
+    \addplot[draw=none, fill=gray, fill opacity=0.25] fill between[of=top line and aero upper];
+    \addplot[black, thin]
+    table[col sep=comma, x=Vt_mps, y=Altitude_m] {aero_pla_lower.csv};
+    \addplot[black, thin]
+    table[col sep=comma, x=Vt_mps, y=Altitude_m] {aero_pla_upper.csv};
+    \addplot[black, dashed, thick]
+    table[col sep=comma, x=Vt_mps, y=Altitude_m] {pla_upper.csv};
+    \addplot[black, thick, dash pattern=on 6pt off 1pt]
+    table[col sep=comma, x=Vt_mps, y=Altitude_m] {pla_upper.csv};
+    \addplot[black, dash dot, thick]
+    table[col sep=comma, x=Vt_mps, y=Altitude_m] {pla_upper.csv};
+    \end{axis}
+    \end{tikzpicture}
+    \caption{Trim envelopes for aerodynamic control and TVC-only configurations at three vector angle limits.}
+    \label{fig:level_6dof_refined_envelope_clipped}
+\end{figure*}
+
+\begin{figure*}[!h]
+    \centering
+    \begin{tikzpicture}
+    \begin{axis}[
+        width=0.94\textwidth,
+        height=0.36\textheight,
+        xmin=0, xmax=550,
+        ymin=0, ymax=20000,
+        xlabel={$V_t\;(\mathrm{m\,s}^{-1})$},
+        ylabel={Altitude ($\mathrm{m}$)},
+        grid=major,
+        enlargelimits=false,
+        tick label style={font=\small},
+        label style={font=\small},
+        tick align=outside,
+        legend style={font=\scriptsize, draw=none, fill=none, at={(0.02,0.98)}, anchor=north west},
+    ]
+    \addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {pla_80.csv};
+    \addlegendentry{PLA contours}
+    \addplot[black, dashed, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {dzneg_m1.csv};
+    \addlegendentry{$\delta_{tv_z}$ contours}
+    \addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {pla_100.csv};
+    \addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {pla_110.csv};
+    \addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {pla_127.csv};
+    \addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {pla_132.csv};
+    \addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {pla_140.csv};
+    \addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {pla_150.csv};
+    \addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {pla_200.csv};
+    \addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {pla_300.csv};
+    \addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {pla_500.csv};
+    \addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {pla_1000.csv};
+    \addplot[black, dashed, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {dzneg_m5.csv};
+    \addplot[black, dashed, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {dzneg_m10.csv};
+    \addplot[black, dashed, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {dzneg_m15.csv};
+    \addplot[black, dashed, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {dzneg_m20.csv};
+    \addplot[black, dashed, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {dzneg_m25.csv};
+    \addplot[black, dashed, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {dzneg_m28.csv};
+    \node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:205,2100)  {80};
+    \node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:270,4000)  {100};
+    \node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:315,6000)  {110};
+    \node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:420,9000)  {127};
+    \node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:455,9700)  {132};
+    \node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:540,19000)  {127};
+    \node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:490,10000) {140};
+    \node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:530,10500) {150};
+    \node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:325,18000) {200};
+    \node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:285,18000) {300};
+    \node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:260,18000) {500};
+    \node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:220,18000) {1000};
+    \node[font=\scriptsize, text=black, fill=white, inner sep=1pt] at (axis cs:125,10000)  {$-1^\circ$};
+    \node[font=\scriptsize, text=black, fill=white, inner sep=1pt] at (axis cs:242,18500)  {$-1^\circ$};
+    \node[font=\scriptsize, text=black, fill=white, inner sep=1pt] at (axis cs:175,9000) {$-5^\circ$};
+    \node[font=\scriptsize, text=black, fill=white, inner sep=1pt] at (axis cs:215,8750) {$-10^\circ$};
+    \node[font=\scriptsize, text=black, fill=white, inner sep=1pt] at (axis cs:240,8000) {$-15^\circ$};
+    \node[font=\scriptsize, text=black, fill=white, inner sep=1pt] at (axis cs:280,7500) {$-20^\circ$};
+    \node[font=\scriptsize, text=black, fill=white, inner sep=1pt] at (axis cs:370,3500)  {$-25^\circ$};
+    \node[font=\scriptsize, text=black, fill=white, inner sep=1pt] at (axis cs:450,700)  {$-28^\circ$};
+    \end{axis}
+    \end{tikzpicture}
+    \caption{PLA and $\delta_{tv_z}$ contours over the recovered equilibrium map in true-airspeed--altitude coordinates.}
+    \label{fig:level_6dof_contours_vt}
+\end{figure*}
+
+\clearpage
+
+\begin{figure*}[!t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=0.94\textwidth,
+    height=0.36\textheight,
+    xlabel={$V_t$ ($\mathrm{m\,s}^{-1}$)},
+    ylabel={Altitude ($\mathrm{m}$)},
+    xmin=0, xmax=550,
+    ymin=0, ymax=20000,
+    grid=major,
+    tick align=outside,
+    legend style={font=\scriptsize, draw=none, fill=none, at={(0.02,0.98)}, anchor=north west},
+]
+\addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {aero_pla_80.csv};
+\addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {aero_pla_100.csv};
+\addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {aero_pla_110.csv};
+\addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {aero_pla_127.csv};
+\addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {aero_pla_132.csv};
+\addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {aero_pla_140.csv};
+\addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {aero_pla_150.csv};
+\addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {aero_pla_200.csv};
+\addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {aero_pla_300.csv};
+\addplot[black, thick] table[col sep=comma, x=Vt_mps, y=Altitude_m, unbounded coords=jump] {aero_pla_500.csv};
+\addlegendentry{PLA contours}
+\node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:195,2100)  {80};
+\node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:260,4000)  {100};
+\node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:305,6000)  {110};
+\node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:410,9000)  {127};
+\node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:445,9700)  {132};
+\node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:450,15800)  {132};
+\node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:500,18000)  {127};
+\node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:480,10000) {140};
+\node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:520,10500) {150};
+\node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:325,18000) {200};
+\node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:285,18000) {300};
+\node[font=\scriptsize, fill=white, inner sep=1pt] at (axis cs:255,18000) {500};
+\end{axis}
+\end{tikzpicture}
+\caption{PLA contours over the aerodynamic-control equilibrium map in true-airspeed--altitude coordinates.}
+\label{fig:aero_pla_contours_full}
+\end{figure*}
+
+The trim-feasible operating envelopes in the altitude--true-airspeed plane are compared in \autoref{fig:level_6dof_refined_envelope_clipped}. Under nominal propulsion and actuator limits, the aerodynamic-control configuration yields the largest contiguous main envelope across most of the flight domain. The TVC-only configuration produces a smaller main envelope whose extent depends more strongly on the available pitch thrust-vector authority.
+
+Increasing the maximum pitch thrust-vector angle $\delta_{tv_z,\max}$ from $15^\circ$ to $25^\circ$ expands the TVC-only main envelope, particularly at moderate-to-high true airspeeds and near the upper-altitude boundary, where trim authority is most constrained. This confirms that vectoring authority is an important practical limitation within the principal operating region.
+
+In addition to the main envelope, all nominal TVC-only cases exhibit a detached upper branch at high speed and altitude. Within the tested vector-angle range, this detached upper branch remains present in all TVC-only cases, although its detailed extent still depends on the available vectoring authority. As shown later, this branch is not exclusive to the TVC-only architecture when propulsion constraints are relaxed; however, under the nominal limits considered here it is reached more readily in the TVC-only case.
+
+Taken together, the results in Figs.~\ref{fig:level_6dof_contours_vt} and \ref{fig:aero_pla_contours_full} show that the main nominal difference between the two control architectures lies not in the existence of the detached region itself, but in the size and continuity of the reachable trim-feasible set and in the propulsion demand required to access disconnected regions of that set.
+
+\subsection{Critical Propulsion and Vectoring Thresholds}
+The minimum PLA required to connect the main envelope to the detached upper branch is
+\begin{equation}
+\begin{aligned}
+\mathrm{PLA}_{\min}^{\mathrm{conn.}}
+=
+\min \Bigl\{
+\mathrm{PLA}_{\max}
+:\;
+&\mathcal{E}_{\mathrm{m}} \cup \mathcal{E}_{\mathrm{b}} \\
+&\text{is connected}
+\Bigr\}.
+\end{aligned}
+\label{eq:pla_connect}
+\end{equation}
+Here, $\mathcal{E}_{\mathrm{m}}$ denotes the main envelope and $\mathcal{E}_{\mathrm{b}}$ denotes the detached upper branch.
+
+For a fixed $\mathrm{PLA}_{\max}$, three minimum vectoring-angle thresholds are defined:
+\begin{align}
+\delta_{tv_z,\min}^{(1)}
+&=
+\min \Bigl\{
+\delta
+:\;
+A\!\left(\mathcal{E}_{\mathrm{m}}(\mathrm{PLA}_{\max},\delta)\right)
+\ge A_{\mathrm{ref}}
+\Bigr\},
+\label{eq:crit1}
+\\
+\delta_{tv_z,\min}^{(2)}
+&=
+\min \Bigl\{
+\delta
+:\;
+(V_t^{\max},\,h_{V_t})
+\in
+\mathcal{E}_{\mathrm{m}}(\mathrm{PLA}_{\max},\delta)
+\Bigr\},
+\label{eq:crit2}
+\\
+\delta_{tv_z,\min}^{(3)}
+&=
+\min \Bigl\{
+\delta
+:\;
+(V_t^{\mathrm{alt}},\,h^{\max})
+\in
+\mathcal{E}_{\mathrm{m}}(\mathrm{PLA}_{\max},\delta)
+\Bigr\}.
+\label{eq:crit3}
+\end{align}
+where $A(\cdot)$ is the altitude--true-airspeed envelope area and $A_{\text{ref}}$ is the reference area at maximum tested vectoring authority.
+
+These thresholds are summarised in \autoref{tab:critical_thresholds}, and their values for both aerodynamic-control and TVC-only case are listed in \autoref{tab:nom_thresholds}.
+
+\begin{table}[h]
+\centering
+\footnotesize
+\caption{Critical actuator thresholds.}
+\label{tab:critical_thresholds}
+\begin{tabular}{lcc}
+\toprule
+Objective & PLA$_{\max}$ & Min. $\delta_{tv_z,\max}$ \\
+\midrule
+detached upper branch connection & $\text{PLA}_{\min}^{\text{connect}}$ & -- \\
+Full main envelope area & given & $\delta^{(1)}$ \\
+Max true airspeed point & given & $\delta^{(2)}$ \\
+Max altitude point & given & $\delta^{(3)}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\footnotesize
+\caption{Nominal configuration actuator thresholds.}
+\label{tab:nom_thresholds}
+\begin{tabular}{lcc}
+\toprule
+Metric & TVC-Only & Aero \\
+\midrule
+$\text{PLA}_{\min}^{\text{connect}}$ & $132$ & $135$\\
+$\delta^{(1)}$ & $26^\circ$ & --\\
+$\delta^{(2)}$ & $20.5^\circ$ & --\\
+$\delta^{(3)}$ & $17.5^\circ$ & --\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Continuation Test for the Detached Upper Region}
+Figure~\ref{fig:deltaz_alpha_branch_scatter} projects the accepted TVC-only trim points into the $\delta_{tv_z}$--$\alpha$ plane. The lower-$\alpha$ locus corresponds mainly to the principal envelope, while the higher-speed/high-altitude detached solutions occupy a separate part of the projection. This separation is useful because it shows that the detached region is not only a gap in the altitude--airspeed plot; the corresponding trim states also require a different combination of angle of attack and thrust-vector angle.
+
+To examine this more directly, local continuation in altitude was performed at fixed true airspeed from representative converged seeds placed in the nominal main-envelope and detached-upper-region solutions. Continuation methods are commonly used to assess whether apparently isolated equilibria correspond to genuine solution structure or to numerical artefacts \cite{ParanjapeSinhaAnanthkrishnan2007,SharmaEtAl2015}. Under nominal constraints, the detached region remains separated from the main envelope in the recovered trim map. However, when propulsion constraints are relaxed, the continuation paths initiated from the two seed locations merge onto a common continuation path at the tested condition. This indicates that, at least for that operating point, the nominally detached region is connected to the main trim family once the propulsion constraint is removed.
+
+Accordingly, the detached upper region is best interpreted not as definitive evidence of a globally separate trim branch, but as a propulsion-limited portion of the nonlinear trim structure that becomes inaccessible under the nominal constraints. The present continuation test is local and does not replace a full pseudo-arclength continuation or bifurcation analysis, so the global equilibrium topology remains an open question. It does, however, show that the detached appearance observed in the nominal envelope is physically meaningful and tied to accessibility limits rather than to gridding or plotting error.
+
+\begin{figure}[!h]
+\centering
+\pgfplotstableread[col sep=comma]{deltaz_alpha_altitude_thinned.csv}\datatable
+\begin{tikzpicture}
+\begin{axis}[
+    width=0.92\linewidth,
+    height=0.7\linewidth,
+    ylabel={$\alpha$ ($^\circ$)},
+    xlabel={$\delta_{tv_z}$ ($^\circ$)},
+    grid=major,
+    tick align=outside,
+]
+\addplot[only marks, mark=*, mark size=0.7pt, black] table[x=DELTAZ_deg, y=Alpha_deg, col sep=comma] {\datatable};
+\end{axis}
+\end{tikzpicture}
+\caption{TVC-only trim points in the $\delta_{tv_z}$--$\alpha$ plane.}
+\label{fig:deltaz_alpha_branch_scatter}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=\linewidth,
+    height=0.5\linewidth,
+    xlabel={PLA ($^\circ$)},
+    ylabel={Altitude (m)},
+    grid=major,
+    tick align=outside,
+    legend style={font=\scriptsize, draw=none, fill=none, at={(0.98,0.5)}, anchor=east},
+]
+\addplot[black, thick] table[col sep=comma, x=PLA_deg, y=Altitude_m] {branch_445_main.csv};
+\addlegendentry{Main seed trace}
+\addplot[black, thick, dashed] table[col sep=comma, x=PLA_deg, y=Altitude_m] {branch_445_island.csv};
+\addlegendentry{Upper seed trace}
+\end{axis}
+\end{tikzpicture}
+\caption{Local continuation at $V_t=445\,\mathrm{m\,s}^{-1}$ under relaxed propulsion constraints. The traces initiated from the nominal main-envelope and detached upper region seeds merge onto a common continuation path.}
+\label{fig:branch_445_pla_alt}
+\end{figure}
+
+\subsection{Effect of Removing Propulsion Constraints}
+When the PLA constraint is relaxed and engine thrust is extrapolated, with thrust scale factor up to 8.87, the trim-feasible structure changes markedly. For the TVC-only case, the main envelope expands significantly and the separation between the main envelope and the detached upper branch can be bridged.
+
+As shown in \autoref{fig:level_6dof_contours_vt}, increasing available thrust allows the previously disconnected regions to approach and, in some cases, merge into a single connected feasible set. The corresponding aerodynamic-control results in \autoref{fig:aero_pla_contours_full} show that the detached upper branch can also be recovered under sufficiently relaxed propulsion limits, but only at higher required PLA levels than in the TVC-only case.
+
+These results indicate that propulsion margin is the dominant factor governing accessibility of the detached upper branch, whereas vectoring authority primarily shapes the extent of the nominal TVC-only main envelope. The principal architectural difference therefore lies less in branch existence than in branch accessibility under realistic propulsion limits.
+
+\subsection{Dynamic Recoverability}
+Static trim feasibility only shows that the nonlinear force and moment balance can be satisfied. It does not show whether the aircraft can return to that equilibrium after a perturbation. For this reason, representative trim points from the main envelope, the detached upper branch, and outside the recovered envelope were assessed using local LQR controllers and nonlinear closed-loop simulation. These simulations are interpreted together with the eigenvalue summary in Table~\ref{tab:eigenvalue_summary}.
+
+The integrated flight-path-angle error metric $J_\gamma$ at sea level and $20\,\mathrm{km}$ is shown in Figs.~\ref{fig:Jgamma_0m} and~\ref{fig:Jgamma_20km}, respectively, while the maximum tolerable actuator lag $\tau_{\max}$ is presented in Fig.~\ref{fig:tau_max}. The endpoints of these curves closely track the corresponding trim-feasible speed limits at the same altitude, indicating that recovery quality degrades as the static trim boundary is approached.
+
+\pgfplotstableread[col sep=comma]{gamma_vt_tau_max_results_sorted.csv}\datatable
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=0.92\linewidth,
+    height=0.52\linewidth,
+    xlabel={$V_t$ ($\mathrm{m\,s}^{-1}$)},
+    ylabel={$J_\gamma\,(^\circ\,\mathrm{s})$},
+    title={$h = 0\,\mathrm{m}$},
+    grid=major,
+    ymin = 0, ymax = 120, ytick distance = 20,
+    grid style={draw=gray!25, line width=0.3pt},
+    tick align=outside,
+    legend style={font=\scriptsize, draw=none, fill=none, at={(0.98,0.02)}, anchor=south east},
+    unbounded coords=discard,
+]
+\addplot[thick, solid, no markers, smooth] table[x=Vt_mps, y=J_gamma_deg_s, restrict expr to domain={\thisrow{Alt_m}}{0:0}, restrict expr to domain={\thisrow{DeltaDotMax_degps}}{50:50}, restrict expr to domain={\thisrow{TrimOK}}{1:1}] {\datatable};
+\addlegendentry{$\dot{\delta}_{\max}=50\,\degree\,\mathrm{s}^{-1}$}
+\addplot[thick, dashed, no markers, smooth] table[x=Vt_mps, y=J_gamma_deg_s, restrict expr to domain={\thisrow{Alt_m}}{0:0}, restrict expr to domain={\thisrow{DeltaDotMax_degps}}{100:100}, restrict expr to domain={\thisrow{TrimOK}}{1:1}] {\datatable};
+\addlegendentry{$\dot{\delta}_{\max}=100\,\degree\,\mathrm{s}^{-1}$}
+\addplot[thick, dash dot, no markers, smooth] table[x=Vt_mps, y=J_gamma_deg_s, restrict expr to domain={\thisrow{Alt_m}}{0:0}, restrict expr to domain={\thisrow{DeltaDotMax_degps}}{200:200}, restrict expr to domain={\thisrow{TrimOK}}{1:1}] {\datatable};
+\addlegendentry{$\dot{\delta}_{\max}=200\,\degree\,\mathrm{s}^{-1}$}
+\end{axis}
+\end{tikzpicture}
+\caption{Integrated flight path-angle error metric $J_\gamma$ as a function of airspeed at sea level.}
+\label{fig:Jgamma_0m}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=0.92\linewidth,
+    height=0.52\linewidth,
+    ymin = 0, ymax = 120, ytick distance = 20,
+    xlabel={$V_t$ ($\mathrm{m\,s}^{-1}$)},
+    ylabel={$J_\gamma\,(^\circ\,\mathrm{s})$},
+    title={$h = 20{,}000\,\mathrm{m}$},
+    grid=major,
+    grid style={draw=gray!25, line width=0.3pt},
+    tick align=outside,
+    legend style={font=\scriptsize, draw=none, fill=none, at={(0.98,0.02)}, anchor=south east},
+    unbounded coords=discard,
+]
+\addplot[thick, solid, no markers, smooth] table[x=Vt_mps, y=J_gamma_deg_s, restrict expr to domain={\thisrow{Alt_m}}{20000:20000}, restrict expr to domain={\thisrow{DeltaDotMax_degps}}{50:50}, restrict expr to domain={\thisrow{TrimOK}}{1:1}] {\datatable};
+\addlegendentry{$\dot{\delta}_{\max}=50\,\degree\,\mathrm{s}^{-1}$}
+\addplot[thick, dashed, no markers, smooth] table[x=Vt_mps, y=J_gamma_deg_s, restrict expr to domain={\thisrow{Alt_m}}{20000:20000}, restrict expr to domain={\thisrow{DeltaDotMax_degps}}{100:100}, restrict expr to domain={\thisrow{TrimOK}}{1:1}] {\datatable};
+\addlegendentry{$\dot{\delta}_{\max}=100\,\degree\,\mathrm{s}^{-1}$}
+\addplot[thick, dash dot, no markers, smooth] table[x=Vt_mps, y=J_gamma_deg_s, restrict expr to domain={\thisrow{Alt_m}}{20000:20000}, restrict expr to domain={\thisrow{DeltaDotMax_degps}}{200:200}, restrict expr to domain={\thisrow{TrimOK}}{1:1}] {\datatable};
+\addlegendentry{$\dot{\delta}_{\max}=200\,\degree\,\mathrm{s}^{-1}$}
+\end{axis}
+\end{tikzpicture}
+\caption{Integrated flight path-angle error metric $J_\gamma$ as a function of airspeed at $20{,}000\,\mathrm{m}$.}
+\label{fig:Jgamma_20km}
+\end{figure}
+
+\begin{figure}[!h]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=0.92\linewidth,
+    height=0.52\linewidth,
+    xmin = 0,
+    xlabel={$V_t$ ($\mathrm{m\,s}^{-1}$)},
+    ylabel={$\tau_{\max}$ ($\mathrm{s}$)},
+    grid=major,
+    grid style={draw=gray!25, line width=0.3pt},
+    tick align=outside,
+    legend style={font=\scriptsize, draw=none, fill=none, at={(0.98,0.98)}, anchor=north east},
+    unbounded coords=discard,
+]
+\addplot[thick, solid, no markers, smooth] table[x=Vt_mps, y=TauMax_s, restrict expr to domain={\thisrow{Alt_m}}{0:0}, restrict expr to domain={\thisrow{DeltaDotMax_degps}}{50:50}, restrict expr to domain={\thisrow{TrimOK}}{1:1}] {\datatable};
+\addlegendentry{$h = 0\,\mathrm{m}$}
+\addplot[thick, dash dot, no markers, smooth] table[x=Vt_mps, y=TauMax_s, restrict expr to domain={\thisrow{Alt_m}}{10000:10000}, restrict expr to domain={\thisrow{DeltaDotMax_degps}}{50:50}, restrict expr to domain={\thisrow{TrimOK}}{1:1}] {\datatable};
+\addlegendentry{$h = 10{,}000\,\mathrm{m}$}
+\addplot[thick, dashed, no markers, smooth] table[x=Vt_mps, y=TauMax_s, restrict expr to domain={\thisrow{Alt_m}}{20000:20000}, restrict expr to domain={\thisrow{DeltaDotMax_degps}}{50:50}, restrict expr to domain={\thisrow{TrimOK}}{1:1}] {\datatable};
+\addlegendentry{$h = 20{,}000\,\mathrm{m}$}
+\end{axis}
+\end{tikzpicture}
+\caption{Maximum tolerable actuator lag $\tau_{\max}$ as a function of airspeed for three altitudes.}
+\label{fig:tau_max}
+\end{figure}
+
+Representative time histories from perturbed trim conditions are shown in Figs.~\ref{fig:stable_tvc_phi_psi_case_main}--\ref{fig:unstable_tvc_phi_psi_case_1}. The main-envelope case at $6000\,\mathrm{m}$ and $250\,\mathrm{m\,s}^{-1}$ shows bounded recovery with small bank and heading excursions. The detached-branch case at $18000\,\mathrm{m}$ and $480\,\mathrm{m\,s}^{-1}$ also remains bounded, although the response is more oscillatory. By contrast, the case at $16000\,\mathrm{m}$ and $450\,\mathrm{m\,s}^{-1}$ lies outside the recovered feasible set and shows slow divergence over the longer simulation window; the accompanying airspeed history in Fig.~\ref{fig:vt_unstable_1} makes this loss of recovery clearer than the short-window attitude plots alone.
+
+A noteworthy practical result is that the TVC-only controller provided sufficient authority to stabilise the aircraft in nonlinear simulation about all selected trim-feasible points examined in this study. These included representative points from the interior of the main envelope, the detached upper branch, and near-boundary points that remained trim-feasible. This indicates that TVC-only control was sufficient not only to recover nominal interior equilibria, but also to regulate more demanding trimmed conditions drawn from different regions of the feasible set. Selected coordinated-turn trim points were also successfully stabilised in closed-loop simulation, further supporting the practical control authority of the TVC-only architecture over the tested operating set.
+
+% MAIN ENVELOPE CASE
+\begin{figure}[!h]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[
+    group style={group size=1 by 4, vertical sep=1.5cm},
+    width=0.92\linewidth,
+    height=0.4\linewidth,
+    xlabel={$t$ ($\mathrm{s}$)},
+    grid=major,
+    tick align=outside,
+]
+\nextgroupplot[ylabel={$\gamma$ ($^\circ$)}, xlabel={$t$ ($\mathrm{s}$)}, grid=major, tick align=outside, xmin = 0, xmax = 120]
+\addplot[black, thick] table[col sep=comma, x=t_s, y=gamma_deg, header=true] {lqr_tvc_main_envelope_vt_250_alt_6000.csv};
+\nextgroupplot[ylabel={Deflection ($^\circ$)}, xmin=0, xmax=120, legend style={font=\scriptsize, draw=none, fill=none, at={(0.98,0.5)}, anchor=east}]
+\addplot[black, thick] table[col sep=comma, x=t_s, y=DELTAZ_act_deg, header=true] {lqr_tvc_main_envelope_vt_250_alt_6000.csv};
+\addplot[black, thick, dashed] table[col sep=comma, x=t_s, y=DELTAW_act_deg, header=true] {lqr_tvc_main_envelope_vt_250_alt_6000.csv};
+\addlegendentry{$\delta_{tv_z}$}
+\addlegendentry{$\delta_{tv_w}$}
+\nextgroupplot[ylabel={$\phi$ ($^\circ$)}, xmin=0, xmax=120]
+\addplot[black, thick] table[col sep=comma, x=t_s, y=phi_deg, header=true] {lqr_tvc_main_envelope_vt_250_alt_6000.csv};
+\nextgroupplot[ylabel={$\psi$ ($^\circ$)}, xmin=0, xmax=120]
+\addplot[black, thick] table[col sep=comma, x=t_s, y=psi_deg, header=true] {lqr_tvc_main_envelope_vt_250_alt_6000.csv};
+\end{groupplot}
+\end{tikzpicture}
+\caption{Flight path angle, TVC actuator deflections, bank angle, and heading angle inside the main envelope, at $6000\,\mathrm{m}$ and $250\,\mathrm{m\,s}^{-1}$.}
+\label{fig:stable_tvc_phi_psi_case_main}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[
+    group style={group size=1 by 4, vertical sep=1.5cm},
+    width=0.92\linewidth,
+    height=0.4\linewidth,
+    xlabel={$t$ ($\mathrm{s}$)},
+    grid=major,
+    tick align=outside,
+]
+\nextgroupplot[ylabel={$\gamma$ ($^\circ$)}, xlabel={$t$ ($\mathrm{s}$)}, grid=major, tick align=outside, xmin = 0, xmax = 120]
+\addplot[black, thick] table[col sep=comma, x=t_s, y=gamma_deg, header=true] {lqr_tvc_island_vt_480_alt_18000.csv};
+\nextgroupplot[ylabel={Deflection ($^\circ$)}, xmin=0, xmax=120, legend style={font=\scriptsize, draw=none, fill=none, at={(0.98,0.5)}, anchor=east}]
+\addplot[black, thick] table[col sep=comma, x=t_s, y=DELTAZ_act_deg, header=true] {lqr_tvc_island_vt_480_alt_18000.csv};
+\addplot[black, thick, dashed] table[col sep=comma, x=t_s, y=DELTAW_act_deg, header=true] {lqr_tvc_island_vt_480_alt_18000.csv};
+\addlegendentry{$\delta_{tv_z}$}
+\addlegendentry{$\delta_{tv_w}$}
+\nextgroupplot[ylabel={$\phi$ ($^\circ$)}, xmin=0, xmax=120]
+\addplot[black, thick] table[col sep=comma, x=t_s, y=phi_deg, header=true] {lqr_tvc_island_vt_480_alt_18000.csv};
+\nextgroupplot[ylabel={$\psi$ ($^\circ$)}, xmin=0, xmax=120]
+\addplot[black, thick] table[col sep=comma, x=t_s, y=psi_deg, header=true] {lqr_tvc_island_vt_480_alt_18000.csv};
+\end{groupplot}
+\end{tikzpicture}
+\caption{Flight path angle, TVC actuator deflections, bank angle, and heading angle inside the detached upper branch envelope, at $18000\,\mathrm{m}$ and $480\,\mathrm{m\,s}^{-1}$.}
+\label{fig:stable_tvc_phi_psi_case_island}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[
+    group style={group size=1 by 4, vertical sep=1.5cm},
+    width=0.92\linewidth,
+    height=0.4\linewidth,
+    xlabel={$t$ ($\mathrm{s}$)},
+    grid=major,
+    tick align=outside,
+]
+\nextgroupplot[ylabel={$\gamma$ ($^\circ$)}, xlabel={$t$ ($\mathrm{s}$)}, grid=major, tick align=outside, xmin = 0, xmax = 240]
+\addplot[black, thick] table[col sep=comma, x=t_s, y=gamma_deg, header=true] {lqr_tvc_unstable_1_vt_450_alt_16000.csv};
+\nextgroupplot[ylabel={Deflection ($^\circ$)}, xmin=0, xmax=240, legend style={font=\scriptsize, draw=none, fill=none, at={(0.98,0.58)}, anchor=east}]
+\addplot[black, thick] table[col sep=comma, x=t_s, y=DELTAZ_act_deg, header=true] {lqr_tvc_unstable_1_vt_450_alt_16000.csv};
+\addplot[black, thick, dashed] table[col sep=comma, x=t_s, y=DELTAW_act_deg, header=true] {lqr_tvc_unstable_1_vt_450_alt_16000.csv};
+\addlegendentry{$\delta_{tv_z}$}
+\addlegendentry{$\delta_{tv_w}$}
+\nextgroupplot[ylabel={$\phi$ ($^\circ$)}, xmin=0, xmax=240]
+\addplot[black, thick] table[col sep=comma, x=t_s, y=phi_deg, header=true] {lqr_tvc_unstable_1_vt_450_alt_16000.csv};
+\nextgroupplot[ylabel={$\psi$ ($^\circ$)}, xmin=0, xmax=240]
+\addplot[black, thick] table[col sep=comma, x=t_s, y=psi_deg, header=true] {lqr_tvc_unstable_1_vt_450_alt_16000.csv};
+\end{groupplot}
+\end{tikzpicture}
+\caption{Flight path angle, TVC actuator deflections, bank angle, and heading angle outside and between the two envelopes, at $16000\,\mathrm{m}$ and $450\,\mathrm{m\,s}^{-1}$.}
+\label{fig:unstable_tvc_phi_psi_case_1}
+\end{figure}
+
+\subsection{Manoeuvre Envelopes}
+Steady coordinated-turn load-factor envelopes for the TVC-only configuration at sea level, $h=10000\,\mathrm{m}$, and $h=20000\,\mathrm{m}$ are presented in Fig.~\ref{fig:tvc_vn_smoothed}. The load factor is computed using Eq.~\eqref{eq:load_factor_turn}. Within the present formulation, the recovered turn envelope is limited mainly by thrust availability and PLA rather than by an explicit stall or structural load-factor boundary. The maximum load factors are therefore modest, which reinforces that the existence of a trim point does not imply strong manoeuvring capability.
+
+\begin{figure}[!h]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=0.92\linewidth,
+    height=0.5\linewidth,
+    ylabel={Loading factor ($n$)},
+    xlabel={$V_e$ ($\mathrm{m\,s}^{-1}$)},
+    grid=major,
+    tick align=outside,
+    ymin = 1,
+    legend style={font=\scriptsize, draw=none, fill=none, at={(0.02,0.98)}, anchor=north west},
+]
+\addplot[black, thick, dashed] table[col sep=comma, x=EAS_mps, y=n_max_smoothed] {vn_curve_0m.csv};
+\addplot[black, thick, dotted] table[col sep=comma, x=EAS_mps, y=n_max_smoothed] {vn_curve_10000m.csv};
+\addplot[black, thin] table[col sep=comma, x=EAS_mps, y=n_max_smoothed] {vn_curve_20000m.csv};
+\addlegendentry{$0\ \mathrm{m}$}
+\addlegendentry{$10000\ \mathrm{m}$}
+\addlegendentry{$20000\ \mathrm{m}$}
+\end{axis}
+\end{tikzpicture}
+\caption{Representative $V_e$-$n$ curves obtained from feasible trimmed-turn solutions at three altitudes. These curves are indicative of the recovered turning capability under the present trim method.}
+\label{fig:tvc_vn_smoothed}
+\end{figure}
+
+Figure~\ref{fig:turn_tvc_phi_psi_case_maxn} gives a nonlinear time-history check for one maximum-load-factor turn at sea level. The large heading change is expected for a sustained coordinated turn and is not, by itself, a sign of instability. The relevant recovery indicators are instead whether $\gamma$, actuator deflections, and bank angle remain bounded about the commanded turn condition. A direct aerodynamic-control manoeuvre comparison is not included in the present results; this should be added in future work to separate TVC-specific manoeuvre limits from limits caused by the underlying aircraft model.
+
+\begin{figure}[!h]
+\centering
+\begin{tikzpicture}
+\begin{groupplot}[
+    group style={group size=1 by 4, vertical sep=1.5cm},
+    width=0.92\linewidth,
+    height=0.4\linewidth,
+    xlabel={$t$ ($\mathrm{s}$)},
+    grid=major,
+    tick align=outside,
+]
+\nextgroupplot[ylabel={$\gamma$ ($^\circ$)}, xlabel={$t$ ($\mathrm{s}$)}, grid=major, tick align=outside, xmin = 0, xmax = 120]
+\addplot[black, thick] table[col sep=comma, x=t_s, y=gamma_deg, header=true] {lqr_turn_vt_300_alt_0.csv};
+\nextgroupplot[ylabel={Deflection ($^\circ$)}, xmin=0, xmax=120, legend style={font=\scriptsize, draw=none, fill=none, at={(0.98,0.5)}, anchor=east}]
+\addplot[black, thick] table[col sep=comma, x=t_s, y=DELTAZ_act_deg, header=true] {lqr_turn_vt_300_alt_0.csv};
+\addplot[black, thick, dashed] table[col sep=comma, x=t_s, y=DELTAW_act_deg, header=true] {lqr_turn_vt_300_alt_0.csv};
+\addlegendentry{$\delta_{tv_z}$}
+\addlegendentry{$\delta_{tv_w}$}
+\nextgroupplot[ylabel={$\phi$ ($^\circ$)}, xmin=0, xmax=120]
+\addplot[black, thick] table[col sep=comma, x=t_s, y=phi_deg, header=true] {lqr_turn_vt_300_alt_0.csv};
+\nextgroupplot[ylabel={$\psi$ ($^\circ$)}, xmin=0, xmax=120]
+\addplot[black, thick] table[col sep=comma, x=t_s, y=psi_deg, header=true] {lqr_turn_vt_300_alt_0.csv};
+\end{groupplot}
+\end{tikzpicture}
+\caption{Flight path angle, TVC actuator deflections, bank angle, and heading angle at a maximum load factor turn, at $0\,\mathrm{m}$ and $300\,\mathrm{m\,s}^{-1}$.}
+\label{fig:turn_tvc_phi_psi_case_maxn}
+\end{figure}
+
+\subsection{Summary of Key Findings}
+Under nominal propulsion and actuator limits, the aerodynamic-control configuration yields the largest contiguous main trim-feasible envelope, while the TVC-only configuration produces a smaller main envelope whose extent depends strongly on the available pitch thrust-vector authority. Increasing $\delta_{tv_z,\max}$ enlarges this nominal TVC-only main envelope, especially at moderate-to-high true airspeeds and near the upper-altitude boundary.
+
+A detached upper branch is recovered in all nominal TVC-only cases. Continuation and parameter-space separation indicate that this nominally disconnected region is not a numerical artefact, while propulsion-relaxed continuation suggests that its apparent separation is governed by accessibility limits rather than definitive global branch disconnection. When propulsion constraints are relaxed, the detached upper branch can also be recovered in the aerodynamic-control case, but only at higher required thrust levels. The principal architectural difference therefore lies in branch accessibility under realistic propulsion limits rather than in branch existence.
+
+Dynamic simulations and local eigenvalue checks show that representative points from both the main envelope and the detached upper branch can be recoverable in closed loop, although lateral-directional behaviour remains the main challenge. Coordinated-turn results further indicate that manoeuvring capability under TVC-only control remains limited even where trimmed solutions exist. Thus, trim feasibility, local stability, and manoeuvre capability should be treated as related but separate measures of usefulness.
+
+\section{Discussion}\label{sec:discussion}
+This study examined the trim-feasible operating envelope of the ICE 101-TV tailless delta wing aircraft under TVC-only and aerodynamic-control configurations using the full nonlinear 6DOF equations of motion. Under nominal propulsion and actuator limits, the aerodynamic-control configuration yields the larger contiguous main envelope across most of the altitude--true-airspeed plane. By contrast, the TVC-only configuration produces a smaller main envelope whose extent depends more strongly on the available pitch thrust-vector angle $\delta_{tv_z,\max}$. Increasing this limit from $15^\circ$ to $25^\circ$ measurably expands the nominal TVC-only main envelope, particularly at moderate-to-high speeds and near the upper-altitude boundary, confirming that vectoring authority is an important practical limitation in the principal operating region. This practical sensitivity is notable because fluidic thrust-vectoring systems often report achievable deflection angles on the order of $15^\circ$, depending on nozzle concept and operating condition \cite{Afridi2023,Flamm2001,StrykowskiKrothapalli1993}.
+
+A detached high-speed/high-altitude trim branch is recovered in all nominal TVC-only cases. Continuation from representative converged seeds and the separation of trim loci in the $\delta_{tv_z}$--$\alpha$ plane indicate that this disconnected region is consistent with a genuine nonlinear trim family instead of a numerical artefact \cite{ParanjapeSinhaAnanthkrishnan2007,SharmaEtAl2015,DeMarcoDukeBerndt2007}. However, the present results also show that the detached upper branch is not unique to the TVC-only architecture. When propulsion constraints are relaxed, a corresponding detached upper branch can also be recovered in the aerodynamic-control case, although at higher required PLA levels. The principal architectural difference is therefore not branch existence, but branch accessibility under realistic propulsion limits.
+
+This distinction is physically important. The detached upper branch appears to be a feature of the underlying nonlinear trim structure of the aircraft model, while the control architecture determines how readily that branch can be reached within the admissible propulsion and control limits \cite{ParanjapeSinhaAnanthkrishnan2007,SharmaEtAl2015}. In the TVC-only case, thrust vectoring provides a more favourable coupling between thrust magnitude and pitching-moment generation, so that the detached upper branch becomes accessible at lower propulsion demand than in the aerodynamic-control case \cite{BosworthStoliker1996,ParkChoiJo2017,WoodBauer1999}. In this sense, thrust vectoring does not create the detached upper branch outright, but it changes its practical reachability and therefore its visibility within the nominal trim-feasible envelope.
+
+The propulsion-relaxed results reinforce this interpretation. As the PLA constraint is relaxed and thrust is extrapolated, the gap between the main envelope and the detached upper branch narrows and can, in some cases, close into a single connected feasible set. This shows that propulsion margin is the dominant barrier to branch accessibility, whereas vector-angle saturation primarily shapes the extent of the nominal TVC-only main envelope. The critical propulsion and vectoring thresholds defined in this work are therefore useful design quantities: they distinguish between enlarging the principal operating region and making disconnected high-speed/high-altitude trim states practically reachable.
+
+Dynamic recoverability analysis tempers the static trim results by showing that a solved equilibrium is not automatically a useful operating point. The eigenvalue check gives a first local stability screen, while the nonlinear simulations expose effects of actuator limits, rate saturation, and coupling not visible from the trim residual alone. The lateral-directional channels are the most delicate part of the response: several cases have acceptable longitudinal recovery but slower bank or heading convergence. This distinction is consistent with previous work on nonlinear and reconfigurable flight control for unconventional aircraft \cite{BaconOstroff2000,Proctor2019}.
+
+The integrated flight-path-angle error $J_\gamma$ and the maximum tolerable actuator lag $\tau_{\max}$ both degrade near the trim-feasible boundary, which is consistent with reduced control margin near envelope limits. Representative points from the detached upper branch can still show acceptable bounded response, so the branch should not be dismissed as a numerical artefact. However, its practical use remains constrained by propulsion demand, actuator rate limits, and lateral-directional performance. The TVC-only controller stabilised every selected trim-feasible point tested in nonlinear simulation, but this statement should be interpreted locally: the gains were designed about selected trim points and do not constitute a proof of global stability or a complete gain-scheduled controller.
+
+The coordinated-turn results provide a similar caution. Trimmed turning solutions can be obtained under TVC-only control, but the resulting load-factor envelopes remain modest and are primarily limited by thrust availability and PLA. Thus, the existence of trimmed solutions does not imply broad manoeuvring capability. From a design standpoint, this reinforces the need to treat trim-feasible envelope size, dynamic stability, and manoeuvre capability as related but distinct measures of operational usefulness.
+
+Several limitations of the present work should be noted. The analysis assumes rigid-body dynamics, perfect knowledge of the aerodynamic database, and ISA atmospheric conditions with no wind or gravity variation. Real vehicles will also be affected by modelling uncertainty, structural flexibility, sensor noise, and implementation-specific actuator dynamics, all of which could reduce the practically usable envelope. In addition, the continuation procedure used here is intentionally local and is sufficient only to assess whether disconnected feasible regions are consistent with genuine trim branches. It is not a full bifurcation analysis and therefore does not characterise the global equilibrium manifold or its stability changes.
+
+Future work should therefore include a more complete numerical continuation and bifurcation study, for example using MATCONT or a tailored predictor--corrector framework, to map the equilibrium surface and identify possible reconnection or turning points. It would also be valuable to compare propulsion-accessibility thresholds systematically across control architectures, incorporate more realistic actuator models directly into the trim stage, and quantify robustness to aerodynamic uncertainty. Blended TVC-plus-aerodynamic control allocation is another natural extension, since it may combine the larger contiguous main envelope of aerodynamic control with the reduced branch-accessibility threshold observed under TVC-only operation. Finally, extension to full 6DOF manoeuvring envelopes and energy--manoeuvrability analysis would provide a more complete picture of practical capability.
+
+In summary, the present results show that available thrust and vector-angle saturation influence the trim-feasible envelope in different ways. Vectoring authority primarily enlarges the nominal TVC-only main envelope, whereas propulsion margin governs whether disconnected high-speed/high-altitude trim branches become reachable. The detached upper branch is therefore best interpreted not as a TVC-exclusive phenomenon, but as a nonlinear trim feature whose practical accessibility is strongly influenced by control architecture and propulsion margin. In particular, thrust vectoring introduces additional force--moment coupling that can make such trim states reachable at lower propulsion demand and therefore more accessible within the nominal operating envelope.
+
+\section{Conclusions}\label{sec:conclusions}
+This paper examined the trim-feasible operating envelope of the ICE 101-TV tailless delta-wing aircraft under TVC-only and aerodynamic-control configurations using a full nonlinear 6DOF trim formulation.
+
+Under nominal propulsion and actuator limits, the aerodynamic-control configuration produces the larger contiguous main trim-feasible envelope across most of the altitude--true-airspeed plane. By contrast, the TVC-only configuration yields a smaller main envelope whose extent depends more strongly on the available pitch thrust-vector angle. Increasing $\delta_{tv_z,\max}$ expands this nominal TVC-only main envelope, particularly at moderate-to-high true airspeeds and near the upper-altitude boundary, showing that vectoring authority is an important practical limitation in the principal operating region.
+
+A detached upper trim branch is recovered in all nominal TVC-only cases. Local continuation from representative converged seeds and the separation of trim loci in the $\delta_{tv_z}$--$\alpha$ plane indicate that this disconnected region is consistent with a genuine nonlinear trim family rather than a numerical artefact. When propulsion constraints are relaxed, a corresponding detached upper branch can also be recovered in the aerodynamic-control case, although at higher required propulsion levels. The principal architectural difference therefore lies not in branch existence, but in branch accessibility under realistic propulsion limits.
+
+The propulsion-relaxed results further show that propulsion margin is the dominant factor governing access to disconnected high-speed/high-altitude trim states, whereas vector-angle saturation primarily shapes the extent of the nominal TVC-only main envelope. The critical propulsion and vectoring thresholds introduced in this work therefore provide useful design metrics for distinguishing between enlargement of the principal operating region and practical accessibility of detached trim branches.
+
+Nonlinear closed-loop simulations and local eigenvalue checks show that static trim feasibility alone does not guarantee satisfactory recoverability, especially in the lateral-directional channels. Nevertheless, the TVC-only controller provided sufficient local authority to stabilise all selected trim-feasible points tested in nonlinear simulation, including representative points from the main envelope, the detached upper branch, and near-boundary cases. Selected coordinated-turn trim states were also recovered successfully. These results indicate that TVC-only control can provide useful local closed-loop stabilisation authority across the tested feasible set, but they do not yet establish global stability or broad manoeuvring capability.
+
+Overall, the results show that thrust vectoring influences the trim-feasible envelope in two practically important ways. First, vectoring authority enlarges the nominally reachable TVC-only main envelope. Second, thrust vectoring introduces additional force--moment coupling that can make detached high-speed/high-altitude trim states reachable at lower propulsion demand, and therefore more accessible within the nominal operating envelope. Future work should extend the present local continuation approach to a full bifurcation analysis, compare propulsion-accessibility thresholds systematically across the two control architectures, and examine blended TVC-plus-aerodynamic control as a means of combining improved branch accessibility with a larger contiguous main envelope.
+
+\bibliographystyle{aiaa}
+\bibliography{references}
+
+\appendix
+\renewcommand{\thefigure}{A\arabic{figure}}
+\setcounter{figure}{0}
+\renewcommand{\thetable}{A\arabic{table}}
+\setcounter{table}{0}
+
+\section{Additional Figures and Tables}
+Appendix material includes full trim-envelope maps, additional nonlinear recovery responses, actuator lag sweeps, coordinated-turn trim results, and extended summaries for all accepted operating points.
+
+
+
+\end{document}

@@ -1,0 +1,7 @@
+filename,reason,sha256
+ukicematlab.m,Inherited model dependency; obtain from an authorised source,6B6E2BA7CE106AB7EDFB6CC5BD1FE2C9490F986B5A32E90ACC063A3C8ED36F74
+enginedata.m,Inherited model dependency; obtain from an authorised source,CFFEB4F12E9393228CAC54FA349E93881DCE3B87563EF88C2E62B56C03505653
+aerolookupdataall.m,Inherited model dependency; obtain from an authorised source,BC87D1F89A3A56D1244CCDE505E6BFB56A41788A82085BB94ED3DAF3CB638D11
+constants.m,Inherited model dependency; obtain from an authorised source,70AFA72558F75D2835FE5C1AFBE2279BA3DAC8E7EE5CBCC6FE0D2D46BBC9F0E2
+airdensity.m,Inherited model dependency; obtain from an authorised source,60C23AE793F1D46C2CFDA812952EEC1E22C60BFE2F2A923F8BC5605497473DB0
+airtemperature.m,Inherited model dependency; obtain from an authorised source,1383FCC2927E113783FBB0922E53B0761F9E4EEE70F2C0C1CE92698344446FCB
